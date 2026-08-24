@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>你画我猜</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="画猜">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#f97316">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script src="words-data.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --orange: #f97316; --orange-d: #ea580c; --bg: #fff7ed; --ink: #1f2937;
+    --muted: #6b7280; --line: #fed7aa; --wrong: #ef4444; --right: #16a34a;
+  }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg); color: var(--ink);
+    display: flex; justify-content: center; align-items: stretch;
+    min-height: 100vh; min-height: 100dvh; touch-action: manipulation;
+  }
+  #app {
+    width: 100%; max-width: 480px; background: #fff;
+    display: flex; flex-direction: column;
+    min-height: 100vh; min-height: 100dvh;
+    padding: calc(12px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom));
+  }
+  .view { display: flex; flex-direction: column; flex: 1; }
+  [hidden] { display: none !important; }
+  h1 { font-size: 28px; text-align: center; color: var(--orange-d); margin: 16px 0 4px; }
+  .sub { text-align: center; color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  .spacer { flex: 1; }
+
+  .btn {
+    border: none; background: var(--orange); color: #fff; border-radius: 14px;
+    padding: 16px; font-size: 19px; font-weight: 700; cursor: pointer; width: 100%;
+  }
+  .btn:active { background: var(--orange-d); }
+  .btn.secondary { background: #fff; color: var(--orange-d); border: 2px solid var(--orange); }
+  .btn:disabled { background: #e5e7eb; color: #9ca3af; border-color: #e5e7eb; cursor: default; }
+  .link { background: none; border: none; color: var(--muted); font-size: 15px; cursor: pointer; padding: 12px; }
+
+  /* categories */
+  .cats { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+  .cat-btn {
+    border: 2px solid var(--orange); background: var(--orange); color: #fff;
+    border-radius: 16px; padding: 18px; font-size: 20px; font-weight: 700;
+    cursor: pointer; transition: transform .05s; text-align: center;
+  }
+  .cat-btn .n { display: block; font-size: 13px; font-weight: 400; opacity: .9; margin-top: 4px; }
+  .cat-btn:active { transform: scale(.97); background: var(--orange-d); }
+
+  /* draw view */
+  .word-bar { text-align: center; padding: 8px 4px; }
+  .word-bar .label { font-size: 12px; color: var(--muted); }
+  .word-bar .word { font-size: 30px; font-weight: 700; color: var(--orange-d); letter-spacing: 2px; }
+  .canvas-wrap {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: #fff; border: 2px solid var(--line); border-radius: 12px; overflow: hidden;
+    margin: 8px 0; min-height: 220px; position: relative;
+  }
+  #drawCanvas { width: 100%; height: 100%; touch-action: none; display: block; background: #fff; }
+  .toolbar { display: flex; flex-direction: column; gap: 8px; }
+  .tools-row { display: flex; gap: 8px; }
+  .tool-btn {
+    flex: 1; border: 2px solid var(--line); background: #fff; color: var(--ink);
+    border-radius: 10px; padding: 10px 4px; font-size: 20px; cursor: pointer;
+  }
+  .tool-btn.active { border-color: var(--orange); background: #fff7ed; }
+  .tool-btn.aux { font-size: 14px; font-weight: 600; }
+  .palette { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+  .swatch {
+    width: 100%; aspect-ratio: 1; border-radius: 50%; border: 2px solid #e5e7eb; cursor: pointer; padding: 0;
+  }
+  .swatch.active { border-color: var(--orange-d); box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--orange-d); }
+
+  /* guess view */
+  .drawing-wrap {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: #fff; border: 2px solid var(--line); border-radius: 12px; overflow: hidden;
+    margin: 8px 0; min-height: 220px;
+  }
+  .drawing-wrap img { width: 100%; height: 100%; object-fit: contain; }
+  .hint-box { min-height: 22px; text-align: center; color: var(--orange-d); font-size: 14px; margin-bottom: 8px; }
+  .guess-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  #guessInput {
+    flex: 1; font-size: 18px; padding: 12px; border: 2px solid var(--line); border-radius: 10px;
+    min-width: 0;
+  }
+  #guessInput.shake { animation: shake .35s; border-color: var(--wrong); }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-6px); }
+    40%, 80% { transform: translateX(6px); }
+  }
+
+  /* modal */
+  .modal-mask {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5);
+    display: flex; align-items: center; justify-content: center; z-index: 10;
+  }
+  .modal {
+    background: #fff; border-radius: 16px; padding: 24px; width: 85%; max-width: 340px; text-align: center;
+  }
+  .modal h2 { color: var(--right); margin: 0 0 8px; font-size: 24px; }
+  .modal .answer { font-size: 20px; font-weight: 700; margin: 8px 0; }
+  .modal .hints-used { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
+  .modal .actions { display: flex; flex-direction: column; gap: 10px; }
+
+  .confirm-mask {
+    position: fixed; inset: 0; background: rgba(0,0,0,.4);
+    display: flex; align-items: center; justify-content: center; z-index: 20;
+  }
+  .confirm-box {
+    background: #fff; border-radius: 14px; padding: 20px; width: 80%; max-width: 300px; text-align: center;
+  }
+  .confirm-box p { margin: 0 0 16px; font-size: 16px; }
+  .confirm-box .actions { display: flex; gap: 10px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- View 1: 主界面 -->
+  <div class="view" id="view-home">
+    <div class="spacer"></div>
+    <h1>你画我猜</h1>
+    <div class="sub">两人一台设备，轮流画画和猜词</div>
+    <button class="btn" id="btnStart">开始游戏</button>
+    <div class="spacer"></div>
+  </div>
+
+  <!-- View 2: 题库选择 -->
+  <div class="view" id="view-category" hidden>
+    <h1>选择题库</h1>
+    <div class="sub">选一个分类，出题人会看到词条</div>
+    <div class="cats" id="catList"></div>
+    <div class="spacer"></div>
+    <button class="link" id="btnCategoryBack">返回主界面</button>
+  </div>
+
+  <!-- View 3: 绘制界面 -->
+  <div class="view" id="view-draw" hidden>
+    <div class="word-bar">
+      <div class="label">词条（请勿让对方看到）</div>
+      <div class="word" id="drawWord"></div>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="drawCanvas"></canvas>
+    </div>
+    <div class="toolbar">
+      <div class="tools-row">
+        <button class="tool-btn" id="toolBrush" title="笔刷">✏️</button>
+        <button class="tool-btn" id="toolEraser" title="橡皮">🧽</button>
+        <button class="tool-btn" id="toolBucket" title="油漆桶">🪣</button>
+        <button class="tool-btn aux" id="btnUndo">撤销</button>
+        <button class="tool-btn aux" id="btnClear">清空</button>
+      </div>
+      <div class="palette" id="palette"></div>
+    </div>
+    <button class="btn" id="btnFinishDraw" style="margin-top:10px;">完成绘制</button>
+  </div>
+
+  <!-- View 4: 猜词界面 -->
+  <div class="view" id="view-guess" hidden>
+    <h1 style="margin-top:4px;">猜猜这是什么？</h1>
+    <div class="drawing-wrap">
+      <img id="guessImg" alt="画作">
+    </div>
+    <div class="hint-box" id="hintBox"></div>
+    <div class="guess-row">
+      <input type="text" id="guessInput" placeholder="输入你的答案" autocomplete="off">
+      <button class="btn" id="btnSubmitGuess" style="width:auto; padding:12px 20px;">提交</button>
+    </div>
+    <button class="btn secondary" id="btnHint">提示（剩 3 次）</button>
+  </div>
+
+</div>
+
+<!-- 结算弹窗 -->
+<div class="modal-mask" id="resultModal" hidden>
+  <div class="modal">
+    <h2>猜对了！</h2>
+    <div class="answer" id="resultAnswer"></div>
+    <div class="hints-used" id="resultHints"></div>
+    <div class="actions">
+      <button class="btn" id="btnPlayAgain">再来一局</button>
+      <button class="btn secondary" id="btnBackHome">回到主界面</button>
+    </div>
+  </div>
+</div>
+
+<!-- 清空画布二次确认 -->
+<div class="confirm-mask" id="clearConfirm" hidden>
+  <div class="confirm-box">
+    <p>确定要清空画布吗？</p>
+    <div class="actions">
+      <button class="btn secondary" id="btnClearCancel" style="width:auto; flex:1;">取消</button>
+      <button class="btn" id="btnClearConfirm" style="width:auto; flex:1; background:var(--wrong);">清空</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var PALETTE_COLORS = [
+    '#000000', '#7f7f7f', '#ffffff', '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
+    '#22c55e', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#ec4899', '#78350f'
+  ];
+  var MAX_HINTS = 3;
+  var UNDO_LIMIT = 20;
+  var BRUSH_WIDTH = 6;
+  var ERASER_WIDTH = 24;
+
+  var game = {
+    category: null,
+    usedWords: {},        // { [categoryKey]: Set(word) }
+    currentWord: '',
+    hintsUsed: 0,
+    tool: 'brush',
+    color: PALETTE_COLORS[0],
+    history: [],           // ImageData 快照栈，撤销用
+    drawing: false,
+    lastX: 0,
+    lastY: 0
+  };
+
+  function $(id) { return document.getElementById(id); }
+  function showView(name) {
+    ['home', 'category', 'draw', 'guess'].forEach(function (v) {
+      $('view-' + v).hidden = v !== name;
+    });
+  }
+
+  // ---------- 题库选择 ----------
+  function renderCategories() {
+    var list = $('catList');
+    list.innerHTML = '';
+    window.CATEGORIES.forEach(function (cat) {
+      var btn = document.createElement('button');
+      btn.className = 'cat-btn';
+      btn.innerHTML = cat.name + '<span class="n">' + cat.words.length + ' 个词条</span>';
+      btn.addEventListener('click', function () { startCategory(cat); });
+      list.appendChild(btn);
+    });
+  }
+
+  function startCategory(cat) {
+    game.category = cat;
+    if (!game.usedWords[cat.key]) game.usedWords[cat.key] = new Set();
+    startDrawRound();
+  }
+
+  function pickWord() {
+    var cat = game.category;
+    var used = game.usedWords[cat.key];
+    var pool = cat.words.filter(function (w) { return !used.has(w); });
+    if (pool.length === 0) {
+      used.clear();
+      pool = cat.words.slice();
+    }
+    var word = pool[Math.floor(Math.random() * pool.length)];
+    used.add(word);
+    return word;
+  }
+
+  // ---------- 绘制界面 ----------
+  var canvas, ctx;
+
+  function initCanvas() {
+    canvas = $('drawCanvas');
+    ctx = canvas.getContext('2d');
+  }
+
+  function resizeCanvasToDisplay() {
+    var wrap = canvas.parentElement;
+    var dpr = window.devicePixelRatio || 1;
+    var w = wrap.clientWidth;
+    var h = wrap.clientHeight;
+    var prev = null;
+    if (canvas.width > 0 && canvas.height > 0) {
+      prev = document.createElement('canvas');
+      prev.width = canvas.width;
+      prev.height = canvas.height;
+      prev.getContext('2d').drawImage(canvas, 0, 0);
+    }
+    canvas.width = Math.max(1, Math.round(w * dpr));
+    canvas.height = Math.max(1, Math.round(h * dpr));
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (prev) ctx.drawImage(prev, 0, 0, prev.width, prev.height, 0, 0, canvas.width, canvas.height);
+  }
+
+  function clearCanvasBlank() {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function renderPalette() {
+    var pal = $('palette');
+    pal.innerHTML = '';
+    PALETTE_COLORS.forEach(function (color) {
+      var sw = document.createElement('button');
+      sw.className = 'swatch' + (color === game.color ? ' active' : '');
+      sw.style.background = color;
+      sw.addEventListener('click', function () {
+        game.color = color;
+        renderPalette();
+      });
+      pal.appendChild(sw);
+    });
+  }
+
+  function setTool(tool) {
+    game.tool = tool;
+    $('toolBrush').classList.toggle('active', tool === 'brush');
+    $('toolEraser').classList.toggle('active', tool === 'eraser');
+    $('toolBucket').classList.toggle('active', tool === 'bucket');
+  }
+
+  function pushHistory() {
+    game.history.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    if (game.history.length > UNDO_LIMIT) game.history.shift();
+    $('btnUndo').disabled = game.history.length === 0;
+  }
+
+  function undo() {
+    if (game.history.length === 0) return;
+    var snap = game.history.pop();
+    ctx.putImageData(snap, 0, 0);
+    $('btnUndo').disabled = game.history.length === 0;
+  }
+
+  function canvasPoint(evt) {
+    var rect = canvas.getBoundingClientRect();
+    var scaleX = canvas.width / rect.width;
+    var scaleY = canvas.height / rect.height;
+    return {
+      x: (evt.clientX - rect.left) * scaleX,
+      y: (evt.clientY - rect.top) * scaleY
+    };
+  }
+
+  function drawLine(x0, y0, x1, y1) {
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = (game.tool === 'eraser' ? ERASER_WIDTH : BRUSH_WIDTH) * (window.devicePixelRatio || 1);
+    ctx.strokeStyle = game.tool === 'eraser' ? '#ffffff' : game.color;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+  }
+
+  function colorAt(data, w, x, y) {
+    var i = (y * w + x) * 4;
+    return [data[i], data[i + 1], data[i + 2], data[i + 3]];
+  }
+
+  function colorsMatch(a, b, tolerance) {
+    return Math.abs(a[0] - b[0]) <= tolerance &&
+           Math.abs(a[1] - b[1]) <= tolerance &&
+           Math.abs(a[2] - b[2]) <= tolerance &&
+           Math.abs(a[3] - b[3]) <= tolerance;
+  }
+
+  function hexToRgba(hex) {
+    var r = parseInt(hex.slice(1, 3), 16);
+    var g = parseInt(hex.slice(3, 5), 16);
+    var b = parseInt(hex.slice(5, 7), 16);
+    return [r, g, b, 255];
+  }
+
+  function floodFill(startX, startY, fillColor) {
+    var w = canvas.width, h = canvas.height;
+    startX = Math.floor(startX);
+    startY = Math.floor(startY);
+    if (startX < 0 || startY < 0 || startX >= w || startY >= h) return;
+    var imgData = ctx.getImageData(0, 0, w, h);
+    var data = imgData.data;
+    var target = colorAt(data, w, startX, startY);
+    var fill = hexToRgba(fillColor);
+    if (colorsMatch(target, fill, 10)) return;
+    var tolerance = 40;
+    var stack = [[startX, startY]];
+    var visited = new Uint8Array(w * h);
+    while (stack.length) {
+      var p = stack.pop();
+      var x = p[0], y = p[1];
+      if (x < 0 || y < 0 || x >= w || y >= h) continue;
+      var idx = y * w + x;
+      if (visited[idx]) continue;
+      var c = colorAt(data, w, x, y);
+      if (!colorsMatch(c, target, tolerance)) continue;
+      visited[idx] = 1;
+      var di = idx * 4;
+      data[di] = fill[0]; data[di + 1] = fill[1]; data[di + 2] = fill[2]; data[di + 3] = fill[3];
+      stack.push([x + 1, y]);
+      stack.push([x - 1, y]);
+      stack.push([x, y + 1]);
+      stack.push([x, y - 1]);
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  function bindCanvasEvents() {
+    canvas.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      canvas.setPointerCapture(e.pointerId);
+      var p = canvasPoint(e);
+      if (game.tool === 'bucket') {
+        pushHistory();
+        floodFill(p.x, p.y, game.color);
+        return;
+      }
+      pushHistory();
+      game.drawing = true;
+      game.lastX = p.x;
+      game.lastY = p.y;
+      drawLine(p.x, p.y, p.x, p.y);
+    });
+    canvas.addEventListener('pointermove', function (e) {
+      if (!game.drawing) return;
+      e.preventDefault();
+      var p = canvasPoint(e);
+      drawLine(game.lastX, game.lastY, p.x, p.y);
+      game.lastX = p.x;
+      game.lastY = p.y;
+    });
+    function endStroke(e) {
+      if (!game.drawing) return;
+      game.drawing = false;
+    }
+    canvas.addEventListener('pointerup', endStroke);
+    canvas.addEventListener('pointercancel', endStroke);
+    canvas.addEventListener('pointerleave', endStroke);
+  }
+
+  function startDrawRound() {
+    game.currentWord = pickWord();
+    game.hintsUsed = 0;
+    game.history = [];
+    $('btnUndo').disabled = true;
+    $('drawWord').textContent = game.currentWord;
+    setTool('brush');
+    game.color = PALETTE_COLORS[0];
+    showView('draw');
+    requestAnimationFrame(function () {
+      resizeCanvasToDisplay();
+      clearCanvasBlank();
+      renderPalette();
+    });
+  }
+
+  // ---------- 猜词界面 ----------
+  function renderHintBox() {
+    var box = $('hintBox');
+    var lines = [];
+    if (game.hintsUsed >= 1) lines.push('提示1：该词共 ' + game.currentWord.length + ' 个字');
+    if (game.hintsUsed >= 2) lines.push('提示2：分类是「' + game.category.name + '」');
+    if (game.hintsUsed >= 3) lines.push('提示3：第一个字是「' + game.currentWord[0] + '」');
+    box.innerHTML = lines.map(function (l) { return '<div>' + l + '</div>'; }).join('');
+    var btn = $('btnHint');
+    var remaining = MAX_HINTS - game.hintsUsed;
+    if (remaining <= 0) {
+      btn.disabled = true;
+      btn.textContent = '提示已用完';
+    } else {
+      btn.disabled = false;
+      btn.textContent = '提示（剩 ' + remaining + ' 次）';
+    }
+  }
+
+  function startGuessRound() {
+    $('guessImg').src = canvas.toDataURL('image/png');
+    $('guessInput').value = '';
+    renderHintBox();
+    showView('guess');
+    $('guessInput').focus();
+  }
+
+  function submitGuess() {
+    var input = $('guessInput');
+    var val = input.value.trim();
+    if (!val) return;
+    if (val === game.currentWord) {
+      showResultModal();
+    } else {
+      input.classList.remove('shake');
+      void input.offsetWidth;
+      input.classList.add('shake');
+    }
+  }
+
+  function showResultModal() {
+    $('resultAnswer').textContent = '答案：' + game.currentWord;
+    $('resultHints').textContent = '本轮使用提示 ' + game.hintsUsed + ' 次';
+    $('resultModal').hidden = false;
+  }
+
+  // ---------- 事件绑定 ----------
+  function bindUI() {
+    $('btnStart').addEventListener('click', function () {
+      renderCategories();
+      showView('category');
+    });
+    $('btnCategoryBack').addEventListener('click', function () { showView('home'); });
+
+    $('toolBrush').addEventListener('click', function () { setTool('brush'); });
+    $('toolEraser').addEventListener('click', function () { setTool('eraser'); });
+    $('toolBucket').addEventListener('click', function () { setTool('bucket'); });
+    $('btnUndo').addEventListener('click', undo);
+
+    $('btnClear').addEventListener('click', function () { $('clearConfirm').hidden = false; });
+    $('btnClearCancel').addEventListener('click', function () { $('clearConfirm').hidden = true; });
+    $('btnClearConfirm').addEventListener('click', function () {
+      pushHistory();
+      clearCanvasBlank();
+      $('clearConfirm').hidden = true;
+    });
+
+    $('btnFinishDraw').addEventListener('click', startGuessRound);
+
+    $('btnHint').addEventListener('click', function () {
+      if (game.hintsUsed >= MAX_HINTS) return;
+      game.hintsUsed++;
+      renderHintBox();
+    });
+    $('btnSubmitGuess').addEventListener('click', submitGuess);
+    $('guessInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') submitGuess();
+    });
+
+    $('btnPlayAgain').addEventListener('click', function () {
+      $('resultModal').hidden = true;
+      startDrawRound();
+    });
+    $('btnBackHome').addEventListener('click', function () {
+      $('resultModal').hidden = true;
+      showView('home');
+    });
+
+    window.addEventListener('resize', function () {
+      if (!$('view-draw').hidden) resizeCanvasToDisplay();
+    });
+  }
+
+  function init() {
+    initCanvas();
+    bindCanvasEvents();
+    bindUI();
+    showView('home');
+  }
+
+  init();
+
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+    });
+  }
+})();
+</script>
+</body>
+</html>
