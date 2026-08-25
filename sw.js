@@ -1,7 +1,7 @@
 // 你画我猜 Service Worker
 // 改动任何 shell 文件（index.html / words-data.js / manifest / 图标）后，必须自增 CACHE_VERSION，
 // 否则旧 SW 会一直命中旧缓存，用户看不到新版本。
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = 'drawguess-' + CACHE_VERSION;
 const APP_SHELL = [
   './',
