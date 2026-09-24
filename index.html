@@ -467,7 +467,7 @@
     var box = $('hintBox');
     var lines = [];
     if (game.hintsUsed >= 1) lines.push('提示1：该词共 ' + game.currentWord.length + ' 个字');
-    if (game.hintsUsed >= 2) lines.push('提示2：分类是「' + game.category.name + '」');
+    if (game.hintsUsed >= 2) lines.push('提示2：最后一个字是「' + game.currentWord[game.currentWord.length - 1] + '」');
     if (game.hintsUsed >= 3) lines.push('提示3：第一个字是「' + game.currentWord[0] + '」');
     box.innerHTML = lines.map(function (l) { return '<div>' + l + '</div>'; }).join('');
     var btn = $('btnHint');
