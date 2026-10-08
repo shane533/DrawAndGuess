@@ -165,6 +165,10 @@
         <button class="tool-btn aux" id="btnClear">清空</button>
       </div>
       <div class="palette" id="palette"></div>
+      <div class="tools-row">
+        <button class="tool-btn aux" id="btnRerollWord">重新选词</button>
+        <button class="tool-btn aux" id="btnBackToCategory">回到类型选择</button>
+      </div>
     </div>
     <button class="btn" id="btnFinishDraw" style="margin-top:10px;">完成绘制</button>
   </div>
@@ -198,13 +202,13 @@
   </div>
 </div>
 
-<!-- 清空画布二次确认 -->
-<div class="confirm-mask" id="clearConfirm" hidden>
+<!-- 危险操作二次确认（清空画布 / 重新选词 / 返回类型选择） -->
+<div class="confirm-mask" id="confirmModal" hidden>
   <div class="confirm-box">
-    <p>确定要清空画布吗？</p>
+    <p id="confirmText"></p>
     <div class="actions">
-      <button class="btn secondary" id="btnClearCancel" style="width:auto; flex:1;">取消</button>
-      <button class="btn" id="btnClearConfirm" style="width:auto; flex:1; background:var(--wrong);">清空</button>
+      <button class="btn secondary" id="btnConfirmCancel" style="width:auto; flex:1;">取消</button>
+      <button class="btn" id="btnConfirmOk" style="width:auto; flex:1; background:var(--wrong);">确定</button>
     </div>
   </div>
 </div>
@@ -261,6 +265,10 @@
     startDrawRound();
   }
 
+  function backToCategory() {
+    showView('category');
+  }
+
   function pickWord() {
     var cat = game.category;
     var used = game.usedWords[cat.key];
@@ -304,6 +312,14 @@
   function clearCanvasBlank() {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function canvasIsBlank() {
+    var data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    for (var i = 0; i < data.length; i += 4) {
+      if (data[i] !== 255 || data[i + 1] !== 255 || data[i + 2] !== 255) return false;
+    }
+    return true;
   }
 
   function renderPalette() {
@@ -508,6 +524,20 @@
     $('resultModal').hidden = false;
   }
 
+  // ---------- 确认弹窗 ----------
+  var confirmAction = null;
+
+  function askConfirm(text, onOk) {
+    $('confirmText').textContent = text;
+    confirmAction = onOk;
+    $('confirmModal').hidden = false;
+  }
+
+  function closeConfirm() {
+    $('confirmModal').hidden = true;
+    confirmAction = null;
+  }
+
   // ---------- 事件绑定 ----------
   function bindUI() {
     $('btnStart').addEventListener('click', function () {
@@ -521,12 +551,32 @@
     $('toolBucket').addEventListener('click', function () { setTool('bucket'); });
     $('btnUndo').addEventListener('click', undo);
 
-    $('btnClear').addEventListener('click', function () { $('clearConfirm').hidden = false; });
-    $('btnClearCancel').addEventListener('click', function () { $('clearConfirm').hidden = true; });
-    $('btnClearConfirm').addEventListener('click', function () {
-      pushHistory();
-      clearCanvasBlank();
-      $('clearConfirm').hidden = true;
+    $('btnClear').addEventListener('click', function () {
+      askConfirm('确定要清空画布吗？', function () {
+        pushHistory();
+        clearCanvasBlank();
+      });
+    });
+    $('btnConfirmCancel').addEventListener('click', closeConfirm);
+    $('btnConfirmOk').addEventListener('click', function () {
+      var onOk = confirmAction;
+      closeConfirm();
+      if (onOk) onOk();
+    });
+
+    $('btnRerollWord').addEventListener('click', function () {
+      if (canvasIsBlank()) {
+        startDrawRound();
+      } else {
+        askConfirm('换一个词条会清空画布上的内容，确定吗？', startDrawRound);
+      }
+    });
+    $('btnBackToCategory').addEventListener('click', function () {
+      if (canvasIsBlank()) {
+        backToCategory();
+      } else {
+        askConfirm('返回类型选择会放弃本轮，画布内容将丢失，确定吗？', backToCategory);
+      }
     });
 
     $('btnFinishDraw').addEventListener('click', startGuessRound);
